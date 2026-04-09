@@ -7,15 +7,14 @@ android {
     namespace 'com.tabmemo'
     compileSdk 34
 
-        
-
     defaultConfig {
         applicationId "com.tabmemo"
         minSdk 26
         targetSdk 34
-        versionCode 3
-                versionName "1.2"
-            }
+        versionCode 20
+        versionName "1.2.20"
+    }
+
     buildTypes {
         debug {
             minifyEnabled false
@@ -24,12 +23,10 @@ android {
             minifyEnabled false
         }
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-
     kotlinOptions {
         jvmTarget = '1.8'
     }
