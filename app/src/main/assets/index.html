@@ -69,38 +69,94 @@
     let currentMemoIdx = null;
     let longPressTimer;
     let dragTarget = null;
+    let isLongPress = false;
+
     const save = () => localStorage.setItem('tabMemoData', JSON.stringify(data));
     const currentTab = () => data.tabs.find(t => t.id === data.activeTab);
+
     function render() {
       const tabsEl = document.getElementById('tabs');
-      tabsEl.innerHTML = data.tabs.map(t => `<div class="tab ${t.id===data.activeTab?'active':''}" onmousedown="startTabPress('${t.id}')" ontouchstart="startTabPress('${t.id}')" onmouseup="clearPress()" ontouchend="clearPress()">\${t.name}<button class="tab-delete" onclick="event.stopPropagation();deleteTab('\${t.id}')">×</button></div>`).join('') + '<button class="tab-add" onclick="addTab()">+</button>';
+      tabsEl.innerHTML = data.tabs.map(t => `<div class="tab ${t.id===data.activeTab?'active':''}" 
+        draggable="true" 
+        onmousedown="startTabPress(event, '${t.id}')" ontouchstart="startTabPress(event, '${t.id}')" 
+        onmouseup="clearPress()" ontouchend="clearPress()"
+        ondragstart="handleDragStart(event, 'tab', '${t.id}')"
+        ondragover="event.preventDefault()"
+        ondrop="handleDrop(event, 'tab', '${t.id}')"
+        ondragend="handleDragEnd(event)"
+        onclick="if(!isLongPress && '${t.id}' !== data.activeTab) { data.activeTab='${t.id}'; save(); render(); }">
+        \${t.name}<button class="tab-delete" onclick="event.stopPropagation();deleteTab('\${t.id}')">×</button></div>`).join('') + 
+        '<button class="tab-add" onclick="addTab()">+</button>';
+
       const tab = currentTab();
-      document.getElementById('countBar').innerText = `メモ: \${tab.memos.length}件`;
-      document.getElementById('memoList').innerHTML = tab.memos.map((m, i) => `
-        <div class="memo-item" onmousedown="startMemoPress(\${i})" ontouchstart="startMemoPress(\${i})" onmouseup="clearPress()" ontouchend="clearPress()" onclick="openModal(\${i})">
+      document.getElementById('countBar').innerText = \`メモ: \${tab.memos.length}件\`;
+      document.getElementById('memoList').innerHTML = tab.memos.map((m, i) => \`
+        <div class="memo-item" 
+          draggable="true"
+          onmousedown="startMemoPress(event, \${i})" ontouchstart="startMemoPress(event, \${i})" 
+          onmouseup="clearPress()" ontouchend="clearPress()" 
+          ondragstart="handleDragStart(event, 'memo', \${i})"
+          ondragover="event.preventDefault()"
+          ondrop="handleDrop(event, 'memo', \${i})"
+          ondragend="handleDragEnd(event)"
+          onclick="if(!isLongPress) openModal(\${i})">
           <div class="memo-header">
             <div class="memo-title">\${m.title || '（無題）'}</div>
             <button class="memo-delete" onclick="event.stopPropagation();deleteMemo(\${i})">×</button>
           </div>
         </div>
-      `).join('');
+      \`).join('');
     }
-    function startTabPress(id) {
+
+    function startTabPress(e, id) {
+      isLongPress = false;
       longPressTimer = setTimeout(() => {
+        isLongPress = true;
         if (id === data.activeTab) {
           const newName = prompt('タブ名を変更', data.tabs.find(t=>t.id===id).name);
           if (newName) { data.tabs.find(t=>t.id===id).name = newName; save(); render(); }
-        } else {
-          data.activeTab = id; save(); render();
         }
       }, 500);
     }
-    function startMemoPress(i) {
+
+    function startMemoPress(e, i) {
+      isLongPress = false;
       longPressTimer = setTimeout(() => {
+        isLongPress = true;
         openModal(i, true);
       }, 600);
     }
-    function clearPress() { clearTimeout(longPressTimer); }
+
+    function clearPress() {
+      clearTimeout(longPressTimer);
+    }
+
+    function handleDragStart(e, type, target) {
+      dragTarget = { type, target };
+      e.target.classList.add('dragging');
+    }
+
+    function handleDrop(e, type, target) {
+      e.preventDefault();
+      if (!dragTarget || dragTarget.type !== type) return;
+      if (type === 'tab') {
+        const fromIdx = data.tabs.findIndex(t => t.id === dragTarget.target);
+        const toIdx = data.tabs.findIndex(t => t.id === target);
+        const [movedTab] = data.tabs.splice(fromIdx, 1);
+        data.tabs.splice(toIdx, 0, movedTab);
+      } else {
+        const tab = currentTab();
+        const [movedMemo] = tab.memos.splice(dragTarget.target, 1);
+        tab.memos.splice(target, 0, movedMemo);
+      }
+      save(); render();
+    }
+
+    function handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      dragTarget = null;
+    }
+
     function openModal(i, edit = false) {
       currentMemoIdx = i;
       const memo = currentTab().memos[i];
@@ -108,14 +164,15 @@
       const view = document.getElementById('viewMode');
       view.innerText = memo.body || '内容がありません';
       view.className = memo.body ? 'view-mode' : 'view-mode empty';
-      view.onmousedown = () => { longPressTimer = setTimeout(switchToEditMode, 600); };
-      view.ontouchstart = () => { longPressTimer = setTimeout(switchToEditMode, 600); };
+      view.onmousedown = () => { isLongPress = false; longPressTimer = setTimeout(switchToEditMode, 600); };
+      view.ontouchstart = () => { isLongPress = false; longPressTimer = setTimeout(switchToEditMode, 600); };
       view.onmouseup = clearPress; view.ontouchend = clearPress;
       document.getElementById('editMode').classList.remove('show');
       view.style.display = 'block';
       if (edit) switchToEditMode();
       document.getElementById('memoModal').classList.add('show');
     }
+
     function switchToEditMode() {
       const tab = currentTab(); const memo = tab.memos[currentMemoIdx];
       document.getElementById('viewMode').style.display = 'none';
@@ -125,6 +182,7 @@
       tIn.oninput = e => { tab.memos[currentMemoIdx].title = e.target.value; document.getElementById('modalTitle').innerText = e.target.value || 'メモ'; save(); };
       bIn.oninput = e => { tab.memos[currentMemoIdx].body = e.target.value; save(); };
     }
+
     function closeModal() { document.getElementById('memoModal').classList.remove('show'); currentMemoIdx = null; render(); }
     function addMemo() { const tab = currentTab(); tab.memos.push({ title: '', body: '' }); save(); openModal(tab.memos.length - 1, true); }
     function deleteMemo(i) { if (confirm('このメモを削除しますか？')) { currentTab().memos.splice(i, 1); save(); render(); } }
