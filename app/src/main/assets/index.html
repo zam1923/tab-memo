@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>タブメモ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f2f2f7; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .header { background: #fff; padding: 12px 16px 0; border-bottom: 1px solid #e0e0e0; }
+  .header h1 { font-size: 20px; font-weight: 700; color: #1c1c1e; margin-bottom: 10px; }
+  .tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 0; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex-shrink: 0; padding: 8px 16px; border-radius: 8px 8px 0 0; background: #f2f2f7; color: #666; font-size: 14px; font-weight: 500; border: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab.active { background: #fff; color: #007aff; border-bottom: 2px solid #007aff; }
+  .tab-add { flex-shrink: 0; padding: 8px 12px; background: none; border: none; color: #007aff; font-size: 20px; cursor: pointer; }
+  .list-area { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .count-bar { font-size: 12px; color: #888; margin-bottom: 8px; padding-left: 4px; }
+  .memo-item { background: #fff; border-radius: 10px; margin-bottom: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .memo-row { display: flex; align-items: center; padding: 14px 12px; cursor: pointer; gap: 10px; }
+  .memo-arrow { color: #bbb; font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
+  .memo-arrow.open { transform: rotate(90deg); color: #007aff; }
+  .memo-title { flex: 1; font-size: 15px; color: #1c1c1e; font-weight: 500; border: none; background: none; outline: none; padding: 0; min-width: 0; }
+  .memo-title::placeholder { color: #c7c7cc; }
+  .memo-delete { color: #ff3b30; font-size: 18px; background: none; border: none; cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+  .memo-body { display: none; padding: 0 12px 12px; }
+  .memo-body.open { display: block; }
+  .memo-textarea { width: 100%; min-height: 120px; border: 1px solid #e5e5ea; border-radius: 8px; padding: 10px; font-size: 15px; color: #1c1c1e; background: #fafafa; resize: vertical; outline: none; line-height: 1.6; font-family: inherit; }
+  .memo-textarea:focus { border-color: #007aff; background: #fff; }
+  .fab { position: fixed; bottom: 24px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: #007aff; color: #fff; font-size: 28px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,122,255,0.4); display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+  .fab:active { transform: scale(0.94); }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>タブメモ</h1>
+  <div class="tabs" id="tabs"></div>
+</div>
+<div class="list-area">
+  <div class="count-bar" id="countBar"></div>
+  <div id="memoList"></div>
+</div>
+<button class="fab" onclick="addMemo()">+</button>
+<script>
+let data = JSON.parse(localStorage.getItem('tabmemo') || 'null') || { tabs: [{ id: 't1', name: 'メモ', memos: [] }], activeTab: 't1' };
+function save() { localStorage.setItem('tabmemo', JSON.stringify(data)); }
+function currentTab() { return data.tabs.find(t => t.id === data.activeTab) || data.tabs[0]; }
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  data.tabs.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (tab.id === data.activeTab ? ' active' : '');
+    btn.textContent = tab.name;
+    btn.onclick = () => { data.activeTab = tab.id; save(); render(); };
+    btn.ondblclick = () => renameTab(tab.id);
+    el.appendChild(btn);
+  });
+  const add = document.createElement('button');
+  add.className = 'tab-add';
+  add.textContent = '+';
+  add.onclick = addTab;
+  el.appendChild(add);
+}
+function renderList() {
+  const tab = currentTab();
+  const list = document.getElementById('memoList');
+  document.getElementById('countBar').textContent = tab.memos.length + '件';
+  list.innerHTML = '';
+  tab.memos.forEach((memo, i) => {
+    const item = document.createElement('div');
+    item.className = 'memo-item';
+    const row = document.createElement('div');
+    row.className = 'memo-row';
+    const arrow = document.createElement('span');
+    arrow.className = 'memo-arrow' + (memo.open ? ' open' : '');
+    arrow.textContent = '▶';
+    arrow.onclick = () => toggleMemo(i);
+    const title = document.createElement('input');
+    title.className = 'memo-title';
+    title.value = memo.title;
+    title.placeholder = '見出し';
+    title.oninput = e => { tab.memos[i].title = e.target.value; save(); };
+    const del = document.createElement('button');
+    del.className = 'memo-delete';
+    del.textContent = '×';
+    del.onclick = () => deleteMemo(i);
+    row.appendChild(arrow);
+    row.appendChild(title);
+    row.appendChild(del);
+    const body = document.createElement('div');
+    body.className = 'memo-body' + (memo.open ? ' open' : '');
+    const textarea = document.createElement('textarea');
+    textarea.className = 'memo-textarea';
+    textarea.value = memo.body;
+    textarea.placeholder = 'メモを入力…';
+    textarea.oninput = e => { tab.memos[i].body = e.target.value; save(); };
+    body.appendChild(textarea);
+    item.appendChild(row);
+    item.appendChild(body);
+    list.appendChild(item);
+  });
+}
+function render() { renderTabs(); renderList(); }
+function toggleMemo(i) {
+  const tab = currentTab();
+  tab.memos[i].open = !tab.memos[i].open;
+  save(); render();
+  if (tab.memos[i].open) setTimeout(() => { const t = document.querySelectorAll('.memo-textarea'); if(t[i]) t[i].focus(); }, 50);
+}
+function addMemo() {
+  currentTab().memos.push({ title: '', body: '', open: true });
+  save(); render();
+  setTimeout(() => { const t = document.querySelectorAll('.memo-title'); if(t.length) t[t.length-1].focus(); }, 50);
+}
+function deleteMemo(i) { currentTab().memos.splice(i,1); save(); render(); }
+function addTab() {
+  const name = prompt('タブ名を入力');
+  if (!name) return;
+  const id = 't' + Date.now();
+  data.tabs.push({ id, name, memos: [] });
+  data.activeTab = id;
+  save(); render();
+}
+function renameTab(id) {
+  const tab = data.tabs.find(t => t.id === id);
+  const name = prompt('タブ名を変更', tab.name);
+  if (!name) return;
+  tab.name = name; save(); render();
+}
+render();
+</script>
+</body>
+</html>
