@@ -7,15 +7,7 @@ android {
     namespace 'com.tabmemo'
     compileSdk 34
 
-        signingConfigs {
-        debug {
-            storeFile file("debug.keystore")
-            storePassword "android"
-            keyAlias "androiddebugkey"
-            keyPassword "android"
-        }
-    }
-
+        
 
     defaultConfig {
         applicationId "com.tabmemo"
@@ -27,7 +19,6 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-                        signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false
