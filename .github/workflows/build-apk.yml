@@ -32,11 +32,11 @@ jobs:
           gradle wrapper --gradle-version 8.7 --distribution-type all
           chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --warning-mode none
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --warning-mode none
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tab-memo-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/debug/*.apk
